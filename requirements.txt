@@ -1,0 +1,46 @@
+# =============================================================================
+# Nitshio — dependencias base (inferencia local)
+# =============================================================================
+# Instalación recomendada:
+#   python -m venv .venv
+#   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# =============================================================================
+
+# Configuración, validación y utilidades
+PyYAML>=6.0,<7
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2
+requests>=2.31,<3
+httpx>=0.27,<1
+psutil>=5.9,<8
+rich>=13.7,<15
+numpy>=1.26,<3
+json-repair>=0.30,<1
+
+# Memoria RAG
+chromadb>=1.0,<2
+
+# Audio / STT / TTS
+sounddevice>=0.4.6,<1
+soundfile>=0.12,<1
+moonshine-voice>=0.1.6,<1
+webrtcvad-wheels>=2.0.14,<3
+piper-tts>=1.8,<2
+
+# Avatar VMC / OSC
+python-osc>=1.8,<2
+
+# Herramientas del agente
+send2trash>=1.8,<2
+mss>=9.0,<11
+Pillow>=10.0,<13
+ddgs>=9.0,<10
+yt-dlp>=2025.1.1
+beautifulsoup4>=4.12,<5
+lxml>=5.0,<7
+
+# Autoconocimiento / reindexado
+watchdog>=4.0,<7
+
+# Interfaz web de entrenamiento
+gradio>=5.0,<7

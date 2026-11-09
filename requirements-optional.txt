@@ -1,0 +1,10 @@
+# =============================================================================
+# Nitshio — extras opcionales
+# =============================================================================
+# STT alternativo para español (fallback de Moonshine)
+faster-whisper>=1.0,<2
+
+# Bot de Discord para modo llamada
+discord.py>=2.4,<3
+PyNaCl>=1.5,<2
+discord-ext-voice-recv>=0.4,<1

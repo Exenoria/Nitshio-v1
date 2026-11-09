@@ -1,0 +1,70 @@
+# =============================================================================
+# Emociones de Nitshio y su representación en el avatar VRM
+# =============================================================================
+# Añadir una emoción nueva = añadir una entrada aquí + (si aplica) un
+# blendshape estándar VRM. No hace falta tocar el parser: la lista permitida
+# se lee de este archivo.
+#
+# `intensity` es el valor objetivo del blendshape (0.0 a 1.0).
+# Los tiempos están en milisegundos.
+# =============================================================================
+
+default: neutral
+
+emotions:
+  neutral:
+    display_name: Neutral
+    vrm_blendshape: Neutral
+    intensity: 1.0
+    fade_in_ms: 250
+    hold_ms: 0
+    fade_out_ms: 500
+    description: "Sin emoción marcada; cara relajada."
+  fun:
+    display_name: Diversión
+    vrm_blendshape: Fun
+    intensity: 0.9
+    fade_in_ms: 220
+    hold_ms: 1200
+    fade_out_ms: 600
+    description: "Juguetona, burlona, con ganas de molestar."
+  angry:
+    display_name: Enojada
+    vrm_blendshape: Angry
+    intensity: 1.0
+    fade_in_ms: 150
+    hold_ms: 1200
+    fade_out_ms: 700
+    description: "Tsundere furiosa, gritando o refunfuñando."
+  joy:
+    display_name: Alegría
+    vrm_blendshape: Joy
+    intensity: 0.95
+    fade_in_ms: 200
+    hold_ms: 1400
+    fade_out_ms: 700
+    description: "Feliz de verdad, aunque intente disimularlo."
+  sorrow:
+    display_name: Tristeza
+    vrm_blendshape: Sorrow
+    intensity: 0.9
+    fade_in_ms: 350
+    hold_ms: 1200
+    fade_out_ms: 900
+    description: "Vulnerable, dolida o preocupada."
+  surprised:
+    display_name: Sorpresa
+    vrm_blendshape: Surprised
+    intensity: 1.0
+    fade_in_ms: 120
+    hold_ms: 900
+    fade_out_ms: 600
+    description: "Sorprendida, alarmada o caught off guard."
+
+transition:
+  tick_hz: 60
+  # Al terminar la emoción, se interpola de vuelta a neutral durante este
+  # tiempo, salvo que llegue otra emoción antes.
+  return_to_neutral_ms: 1200
+  # Si llega una emoción nueva mientras hay otra activa, se hace crossfade.
+  crossfade_ms: 180

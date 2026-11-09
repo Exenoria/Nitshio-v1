@@ -1,0 +1,276 @@
+# =============================================================================
+# Nitshio — configuración central
+# =============================================================================
+# Regla: ningún nombre de modelo, ruta de modelo, emoción o herramienta debe
+# estar hardcodeado en el código. Todo lo configurable vive aquí.
+# Los secretos NO van en este archivo: van en .env (ver .env.example).
+# =============================================================================
+
+project:
+  name: Nitshio
+  version: "0.1.0"
+  language: es-MX
+  timezone: America/Mexico_City
+
+ollama:
+  host: "http://localhost:11434"
+  request_timeout_seconds: 180
+  keep_alive: "30m"
+  models:
+    # Base sobre la que se construye la personalidad y el fine-tune.
+    base: "phi3.5:3.8b-mini-instruct-q4_K_M"
+    # Modelo que usa el pipeline en este momento. El gestor de versiones lo
+    # cambia a nitshio-v1, nitshio-v2, etc. al activar una versión.
+    active: "nitshio-v1"
+    router: "qwen3.5:0.8b"
+    embeddings: "nomic-embed-text:latest"
+    vision: "moondream:v2"
+  options:
+    primary:
+      temperature: 0.75
+      top_p: 0.9
+      repeat_penalty: 1.08
+      # 2048 mantiene Phi-3.5 + KV cache dentro de 4 GB de VRAM.
+      # Si tu GPU tiene más memoria, súbelo a 4096/8192.
+      num_ctx: 2048
+      num_predict: 512
+    router:
+      temperature: 0.0
+      top_p: 0.9
+      num_ctx: 4096
+      num_predict: 256
+  structured_output:
+    retries: 2
+    repair_json: true
+    fallback_emotion: neutral
+
+persona:
+  system_file: "brain/persona/nitshio.md"
+  few_shots_file: "brain/persona/few_shots.jsonl"
+  emotions_file: "config/emotions.yaml"
+  history_turns: 12
+  max_context_chars: 12000
+  # Los few-shot también están en el Modelfile (MESSAGE). Se incluyen en cada
+  # petición para garantizar el formato aunque el template de Ollama los omita.
+  include_few_shots_in_runtime: true
+
+router:
+  enabled: true
+  prompt_file: "config/prompts/router.md"
+  confidence_threshold: 0.55
+  max_tool_rounds: 1
+  timeout_seconds: 60
+
+stt:
+  provider: moonshine
+  language: es
+  model: small_streaming
+  sample_rate: 16000
+  channels: 1
+  device: cpu
+  vad:
+    provider: webrtcvad
+    frame_ms: 30
+    aggressiveness: 2
+    min_speech_ms: 250
+    end_silence_ms: 700
+    pre_roll_ms: 300
+  moonshine:
+    cache_dir: "data/models/moonshine"
+  whisper:
+    model: small
+    device: cpu
+    compute_type: int8
+
+tts:
+  provider: piper
+  chunking:
+    max_chars: 180
+    first_chunk_max_chars: 90
+    min_chars: 12
+  piper:
+    voice: es_MX-claude-high
+    model_path: "data/models/piper/es_MX-claude-high.onnx"
+    config_path: "data/models/piper/es_MX-claude-high.onnx.json"
+    speed: 1.0
+    noise_scale: 0.667
+    noise_w: 0.8
+  fish:
+    base_url: "https://api.fish.audio/v1/tts"
+    api_key_env: FISH_API_KEY
+    model: "s1"
+    voice_id: ""
+    format: "mp3"
+    latency: "balanced"
+  audio:
+    output_device: "CABLE Input"
+    sample_rate: 22050
+    volume: 1.0
+    queue_max_chunks: 8
+    barge_in: true
+
+avatar:
+  enabled: true
+  host: "127.0.0.1"
+  port: 39539
+  address_prefix: "/VMC/Ext"
+  tick_hz: 60
+  default_emotion: neutral
+  return_to_neutral_ms: 1200
+  lipsync:
+    # VSeeFace toma el audio de CABLE Output y hace el lip-sync con su
+    # micrófono virtual. No enviamos visemas por defecto para no pelear con él.
+    enabled: true
+    source: vsee_face_microphone
+    vmc_viseme: A
+
+memory:
+  provider: chroma
+  persist_dir: "data/chroma"
+  collections:
+    memories: memories
+    conversations: conversations
+    self_knowledge: self_knowledge
+    documentation: documentation
+  top_k: 5
+  min_score: 0.2
+  max_injected_chars: 2500
+  summary_every_turns: 12
+
+tools:
+  enabled:
+    - search_google
+    - search_youtube
+    - play_song
+    - open_google
+    - open_youtube
+    - files
+    - screen
+    - read_own_code
+  allowed_paths:
+    - "workspace"
+  security:
+    confirm_delete: true
+    use_recycle_bin: true
+    delete_log: "logs/deletions.jsonl"
+    max_read_bytes: 200000
+    max_write_bytes: 200000
+    allow_symlinks: false
+  search:
+    provider: duckduckgo
+    max_results: 5
+    google_cse_key_env: GOOGLE_CSE_KEY
+    google_cse_cx_env: GOOGLE_CSE_CX
+  youtube:
+    open_in_browser: true
+  media:
+    player: ffplay
+    cache_dir: "data/cache/audio"
+    max_duration_seconds: 600
+    audio_format: bestaudio
+  screen:
+    monitor: 1
+    max_width: 1280
+    save_dir: "data/cache/screens"
+    vision_prompt: >-
+      Describe lo que se ve en esta captura de pantalla. Si hay una ventana,
+      código, un juego o un error, dilo. Responde en español y sé breve.
+
+pipeline:
+  input_mode: text
+  save_transcripts: true
+  call_mode:
+    enabled: false
+    provider: local
+    barge_in: true
+
+discord:
+  enabled: false
+  token_env: DISCORD_TOKEN
+  guild_id_env: DISCORD_GUILD_ID
+  voice_channel_id_env: DISCORD_VOICE_CHANNEL_ID
+
+training:
+  provider: cloud
+  # Tag de Ollama que se usa como base local.
+  base_model: "phi3.5:3.8b-mini-instruct-q4_K_M"
+  # Repositorio Hugging Face que se entrena en la nube. No es un tag de Ollama.
+  hf_model: "microsoft/Phi-3.5-mini-instruct"
+  dataset_dir: "training/datasets"
+  eval_prompts: "training/eval/prompts.yaml"
+  reports_dir: "training/eval/reports"
+  versions_file: "models/versions.json"
+  modelfile_template: "models/Modelfile.template"
+  cloud:
+    provider: kaggle
+    notebook: "training/cloud/Nitshio_QLoRA.ipynb"
+  synthetic:
+    output: "training/datasets/synthetic.jsonl"
+    seed_file: "training/datasets/seed.jsonl"
+    model_role: active
+    per_emotion: 8
+    batch_size: 4
+    max_rounds: 4
+    temperature: 0.9
+    near_duplicate_threshold: 0.9
+    themes:
+      - "saludo y rutina diaria"
+      - "halagos y vergüenza tsundere"
+      - "problemas técnicos y ayuda"
+      - "tristeza, soledad y consuelo"
+      - "juegos, celos y burlas cariñosas"
+      - "noticias buenas y celebración"
+      - "miedo, sorpresa y sustos cotidianos"
+      - "límites y discusiones sin crueldad"
+  qlora:
+    max_seq_length: 2048
+    load_in_4bit: true
+    lora_r: 16
+    lora_alpha: 16
+    lora_dropout: 0.0
+    batch_size: 2
+    grad_accum: 4
+    epochs: 3
+    learning_rate: 0.0002
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+  gguf:
+    quantization: q4_K_M
+  evaluation:
+    judge: true
+    judge_model_role: router
+    similarity_weight: 0.4
+    emotion_weight: 0.3
+    json_weight: 0.2
+    personality_weight: 0.1
+
+hardware:
+  min_tokens_per_second: 8
+  comfortable_tokens_per_second: 20
+  min_router_tokens_per_second: 20
+  max_vram_percent: 95
+  max_ram_percent: 90
+  lighter_primary_alternatives:
+    - "phi3.5:3.8b-mini-instruct-q3_K_M"
+    - "qwen3.5:2b"
+    - "qwen3.5:0.8b"
+  lighter_router_alternatives:
+    - "qwen3.5:0.8b"
+
+paths:
+  data: "data"
+  workspace: "workspace"
+  manifest: "MANIFEST.json"
+  logs: "logs"
+
+logging:
+  level: INFO
+  file: "logs/nitshio.log"
+  max_bytes: 5242880
+  backup_count: 3

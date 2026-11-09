@@ -1,0 +1,243 @@
+# Changelog — Nitshio
+
+Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
+Cada entrada debe indicar fecha, qué cambió, por qué y archivos afectados.
+
+## [0.2.2] — 2026-11-08
+
+### Corregido
+
+- Se generalizaron rutas locales, datos del equipo y nombres de archivos de
+  avatares en la documentación. **Por qué:** preparar una copia pública sin
+  publicar detalles identificables del entorno local.
+
+### Archivos afectados
+
+`README.md`, `docs/PLAN.md`, `docs/VSEEFACE.md`, `docs/TROUBLESHOOTING.md`,
+`docs/DECISIONS.md`, `docs/TRAINING.md`, `docs/CHANGELOG.md`.
+
+## [0.2.1] — 2026-11-07
+
+### Añadido
+
+- **Prueba integral de voz:** `scripts/test_voice_roundtrip.py` inyecta una
+  frase Piper en un micrófono falso, usa Moonshine real, el orquestador real
+  (Ollama + memoria), el TTS Piper y el avatar VMC, y graba `CABLE Output`
+  para verificar el audio. **Por qué:** cerrar el Paso 2 sin depender de que
+  una persona hable al micrófono y dejar una prueba reproducible.
+- **Router con rutas exactas:** `config/prompts/router.md` incluye ejemplos y
+  reglas para `config/config.yaml`, listados de `config/` y
+  `brain/persona/nitshio.md`. **Por qué:** qwen3.5:0.8b no elegía
+  `read_own_code` sin ejemplos explícitos.
+- **Tests de micrófono:** `tests/test_microphone.py` cubre el timeout por frame
+  de `listen_once()` y los casos sin audio, stop y cierre.
+
+### Corregido
+
+- `Microphone.listen_once()` comprueba el timeout en cada frame, no solo al
+  abrir el stream. **Por qué:** un micrófono sin utterances podía bloquear el
+  pipeline indefinidamente.
+- `scripts/test_emotions.py` imprime valores máximos y finales por emoción.
+  **Por qué:** la prueba visual anterior no mostraba si el blendshape había
+  llegado al valor esperado antes de volver a neutral.
+
+### Verificado
+
+- `pytest -q`: **192 tests en verde**.
+- `scripts/test_voice_roundtrip.py --no-tools --json`:
+  `"hola nizio cómo está?"` → respuesta de `nitshio-v1` → 2 chunks TTS
+  (9.58 s) → `CABLE Output` RMS 0.068506, pico 0.283783; emoción `neutral`
+  recibida por el avatar.
+- TTS real a `CABLE Input`: audio confirmado en `CABLE Output` con RMS
+  0.123407 y pico 0.985046.
+- Micrófono real `USB MIC PRO`: abre y captura con RMS 0.001737 y pico
+  0.019348.
+- Router real: tres consultas dispararon `read_own_code` con las rutas
+  correctas.
+- `scripts/test_emotions.py --all`: las seis emociones se mapean, alcanzan su
+  valor máximo y vuelven a neutral.
+- Lip-sync de VSeeFace: confirmado visualmente con
+  `OldLipSyncProvider=1`; el proveedor nuevo no movía la boca. El ajuste
+  persiste tras cerrar y reiniciar VSeeFace.
+
+### Documentación
+
+- `docs/VSEEFACE.md`: procedimiento exacto de lip-sync por audio, proveedor
+  viejo, micrófono `CABLE Output`, avatar validado y evidencia.
+- `docs/TROUBLESHOOTING.md`: diagnóstico de “se oye pero no mueve la boca”,
+  prueba integral de voz y avatares sin grupos VRM.
+- `docs/PLAN.md`: Paso 2 cerrado, evidencias reales y siguiente fase.
+- `docs/ARCHITECTURE.md`: estado de pruebas y nota de lip-sync por audio.
+- `docs/DECISIONS.md`: decisión D-016 sobre el proveedor viejo de lip-sync y
+  los visemas VMC.
+- `README.md`: estado actual, comando de prueba integral y limitaciones.
+
+### Archivos afectados
+
+`scripts/test_voice_roundtrip.py`, `scripts/test_emotions.py`,
+`stt/microphone.py`, `tests/test_microphone.py`,
+`config/prompts/router.md`, `README.md`, `docs/VSEEFACE.md`,
+`docs/TROUBLESHOOTING.md`, `docs/PLAN.md`, `docs/ARCHITECTURE.md`,
+`docs/DECISIONS.md`, `docs/CHANGELOG.md`.
+
+## [0.2.0] — 2026-11-07
+
+### Añadido
+
+- **STT completo:** `stt/base.py` (contrato `STTProvider`, `Transcript` y
+  normalización de audio), `stt/vad.py` (WebRTC VAD con fallback por energía),
+  `stt/microphone.py` (stream de `sounddevice` y utterances),
+  `stt/moonshine_provider.py` (Moonshine español real) y
+  `stt/whisper_provider.py` (fallback opcional). **Por qué:** el pipeline de
+  voz necesita una entrada local, tolerante a fallos y sin depender de PyTorch
+  CUDA.
+- **TTS completo:** `tts/base.py`, `tts/chunker.py` (primer chunk corto para
+  bajar latencia), `tts/piper_provider.py`, `tts/fish_provider.py`,
+  `tts/player.py` (selección de dispositivo, `sounddevice`, barge-in) y
+  `tts/manager.py`. **Por qué:** voz local por chunks con salida a VB-Cable y
+  Fish Audio opcional.
+- **Memoria RAG:** `memory/embeddings.py` (Ollama `/api/embed` con fallback a
+  `/api/embeddings`) y `memory/store.py` (ChromaDB persistente, colecciones
+  separadas, búsqueda y contexto). **Por qué:** recuerdos, conversaciones,
+  código y documentación tienen ciclos de vida distintos.
+- **Herramientas plugin:** `tools/base.py`, `tools/registry.py`, `tools/files.py`,
+  `tools/search_google.py`, `tools/search_youtube.py`, `tools/play_song.py`,
+  `tools/open_google.py`, `tools/open_youtube.py`, `tools/screen.py` y
+  `tools/read_own_code.py`. **Por qué:** el agente debe actuar sin hardcodear
+  acciones en el orquestador.
+- **Router de herramientas:** `brain/router/tool_router.py` con esquema
+  `{tool, arguments, confidence, reason}`, umbral de confianza, reparación de
+  JSON y catálogo dinámico. **Por qué:** decidir herramientas con un modelo
+  pequeño evita gastar el modelo de personalidad.
+- **Avatar VMC:** `avatar/emotions.py` (carga de `config/emotions.yaml` y
+  transiciones fade in/hold/fade out), `avatar/vmc.py` (OSC a VSeeFace) y
+  `avatar/lip_sync.py` (utilidad opcional). **Por qué:** emociones visibles y
+  vuelta a neutral sin saltos bruscos.
+- **Orquestador:** `brain/llm/orchestrator.py` une memoria, router,
+  herramientas, LLM, historial, avatar y TTS con degradación elegante.
+  **Por qué:** un único punto de entrada para texto y voz.
+- **Pipelines:** `pipeline/text.py` (chat con comandos), `pipeline/voice.py`
+  (`VoicePipeline`, `MicrophoneListener` y `CallMode` con barge-in).
+- **Entrada principal:** `run.py` con modos `text`, `voice`, `call` y
+  `diagnose`, y `run.bat`. Banderas `--once`, `--json`, `--speak`, `--debug`,
+  `--no-memory`, `--no-tools`, `--no-avatar`, `--no-tts`, `--model` y
+  `--config`.
+- **Scripts:** `scripts/download_voice.py` (voz Piper), `scripts/test_emotions.py`
+  (prueba VMC con `--dry-run`) y `scripts/check_docs.py` (changelog y docs
+  obligatorios).
+- **Documentación:** `README.md`, `docs/ARCHITECTURE.md`, `docs/TRAINING.md`,
+  `docs/EXTENDING.md`, `docs/TROUBLESHOOTING.md` y `docs/VSEEFACE.md`.
+  **Por qué:** el Paso 2 añade demasiados módulos para dejarlos sin guía.
+
+### Corregido
+
+- Los adaptadores de STT/TTS aceptan tanto la configuración completa como su
+  subsección (`stt`/`tts`). **Por qué:** `crear_stt()`/`crear_tts()` pasan la
+  subsección y los tests pasan la configuración completa; antes Piper intentaba
+  leer una ruta inexistente en la carpeta de usuario.
+- `PiperProvider` valida que `model_path` sea un `.onnx` real antes de cargar.
+  **Por qué:** un valor vacío o la raíz del proyecto producía errores confusos.
+- `FilesTool.execute()` convierte `ToolError` y `OSError` en
+  `ToolResult.fallo()`; la comprobación de symlinks ocurre antes de resolver la
+  ruta real. **Por qué:** llamar a la herramienta directamente no debe lanzar
+  excepciones y un symlink debe reportarse como symlink, no como ruta externa.
+- `AvatarController.stop()` completa la transición a neutral antes del último
+  envío VMC. **Por qué:** al cerrar, VSeeFace debe recibir la cara neutral, no
+  un valor intermedio.
+- `json-repair` se instaló y se usa como segunda pasada del parser y del
+  router. **Por qué:** el modelo devuelve comas finales y JSON casi válido.
+
+### Verificado
+
+- `pytest -q`: **186 tests en verde**.
+- Round-trip real Piper → Moonshine: audio de 2.21 s transcrito como
+  `"hola soy nichio cómo está?"`.
+- Pipeline real de texto con Ollama (`nitshio-v1`) y memoria Chroma:
+  `{"response":"...","emotion":"neutral"}` válido.
+- `run.py --mode diagnose`: Ollama 0.40.15, `CABLE Input` visible, voz Piper
+  presente, Moonshine instalado y ocho herramientas habilitadas.
+
+### Pendiente
+
+- Probar micrófono real (`--mode voice`), salida física por `CABLE Input` y
+  recepción de las seis emociones en VSeeFace.
+- Probar una herramienta real disparada por el router.
+- El Paso 2 no se cierra formalmente hasta completar esas pruebas.
+
+### Archivos afectados
+
+`brain/`, `stt/`, `tts/`, `memory/`, `tools/`, `avatar/`, `pipeline/`,
+`scripts/`, `tests/`, `config/`, `run.py`, `run.bat`, `README.md`, `docs/`.
+
+## [0.1.1] — 2026-11-07
+
+### Corregido
+
+- `scripts/check_models.py` mide primero el modelo activo y luego la base,
+  descargando cada uno con `ollama stop` antes de la siguiente medición.
+  **Por qué:** en 4 GB de VRAM dos modelos compitiendo falseaban el veredicto
+  con un “NO SOPORTADO” que no reflejaba el rendimiento real.
+- Añadidos tests de `parar_modelo()` (ejecuta `ollama stop`, no falla si falta
+  el binario y tolera errores del subproceso). **Por qué:** la función toca el
+  entorno y debía quedar cubierta sin depender de Ollama real.
+
+### Verificado
+
+- `pytest -q`: 40 tests en verde.
+- `check_models.py` real: `nitshio-v1` 15.6 tok/s, base 19.0 tok/s, router
+  73.2 tok/s, embeddings 0.15 s / 768 dims, JSON válido en los tres modelos.
+  **Veredicto: AJUSTADO** (usable con margen justo por los 4 GB de VRAM).
+- Paso 1 cerrado: personalidad, few-shots, Modelfile, parser con reparación y
+  fallback, cliente Ollama con reintentos y CLI de chat funcionando.
+
+### Archivos afectados
+
+`scripts/check_models.py`, `tests/test_check_models.py`, `docs/PLAN.md`,
+`docs/CHANGELOG.md`.
+
+## [0.1.0] — 2026-11-07
+
+### Añadido
+
+- Estructura inicial del proyecto en una carpeta independiente:
+  `brain/`, `stt/`, `tts/`, `memory/`, `tools/`, `avatar/`, `training/`,
+  `config/`, `docs/`, `scripts/`, `tests/`, `data/`, `logs/` y `workspace/`.
+  **Por qué:** separar responsabilidades desde el inicio y evitar mezclar
+  inferencia, entrenamiento, avatar y herramientas.
+- `docs/PLAN.md` con entorno detectado, decisiones, fases, riesgos y criterios
+  de aceptación. **Por qué:** el proyecto es grande y necesita un gate por fase.
+- `config/config.yaml` como única fuente de nombres de modelo, rutas, audio,
+  avatar, memoria, herramientas y entrenamiento. **Por qué:** requisito de no
+  hardcodear modelos y facilitar cambios sin tocar código.
+- `config/emotions.yaml` con las seis emociones iniciales, blendshapes VRM y
+  tiempos de transición. **Por qué:** las emociones deben ser configurables y
+  visibles en VSeeFace.
+- `AGENTS.md` con la regla obligatoria de actualizar changelog y documentación
+  en la misma tarea. **Por qué:** la documentación es parte del producto.
+- `docs/DECISIONS.md` con las decisiones iniciales y sus motivos.
+- `.env.example`, `.gitignore`, `requirements.txt`, `requirements-dev.txt`,
+  `requirements-train.txt` y `requirements-optional.txt`.
+  **Por qué:** separar dependencias de inferencia local, desarrollo,
+  entrenamiento cloud y extras opcionales.
+
+### Completado en esta fase (Paso 0)
+
+- Descargado `phi3.5:3.8b-mini-instruct-q4_K_M` (2.4 GB).
+- Implementado `scripts/check_models.py` con:
+  - comprobación de Ollama y tags,
+  - medición de latencia y tokens/s,
+  - lectura de GPU/RAM y modelos cargados,
+  - veredicto y alternativas más ligeras,
+  - modos `--pull`, `--skip-perf` y `--json`.
+- Añadidos `tests/test_check_models.py` (12 tests) y `pytest.ini`.
+- Prueba real en el entorno local: principal 20.9 tok/s, router 92.1 tok/s,
+  embeddings 0.12 s, JSON válido en ambos. Veredicto: SOPORTADO.
+- **Por qué:** validar la base obligatoria antes de escribir el cerebro evita
+  construir sobre un entorno que no rinde.
+
+### Archivos afectados
+
+`docs/PLAN.md`, `docs/CHANGELOG.md`, `docs/DECISIONS.md`, `AGENTS.md`,
+`config/config.yaml`, `config/emotions.yaml`, `.env.example`, `.gitignore`,
+`requirements*.txt`, `scripts/check_models.py`, `tests/test_check_models.py`,
+`pytest.ini`.

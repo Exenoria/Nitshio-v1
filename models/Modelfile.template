@@ -1,0 +1,29 @@
+# =============================================================================
+# Nitshio — plantilla de Modelfile
+# =============================================================================
+# Generado por scripts/build_model.py. No edites models/Modelfile a mano:
+# edita este template, brain/persona/nitshio.md, brain/persona/few_shots.jsonl
+# o config/config.yaml.
+#
+# Placeholders (se sustituyen al generar; no editar a mano):
+#   BASE_MODEL      -> ollama.models.base
+#   SYSTEM_PROMPT   -> brain/persona/nitshio.md
+#   PARAMETERS      -> parámetros de config.ollama.options.primary
+#   MESSAGES        -> ejemplos MESSAGE user/assistant
+# =============================================================================
+
+FROM __BASE_MODEL__
+
+SYSTEM """__SYSTEM__"""
+
+TEMPLATE """{{ if .System }}<|system|>
+{{ .System }}<|end|>
+{{ end }}{{ if .Prompt }}<|user|>
+{{ .Prompt }}<|end|>
+{{ end }}<|assistant|>
+{{ .Response }}<|end|>
+"""
+
+__PARAMETERS__
+
+__MESSAGES__

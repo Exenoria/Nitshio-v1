@@ -1,0 +1,16 @@
+{
+  "active": "nitshio-v1",
+  "versions": [
+    {
+      "name": "nitshio-v1",
+      "base": "phi3.5:3.8b-mini-instruct-q4_K_M",
+      "created_at": "2026-11-07T16:22:12.124670+00:00",
+      "type": "modelfile",
+      "persona_sha256": "d8197736624dfa24d2e6c97043aa73212560fdcfd5d108102d5f6b9b3e488406",
+      "few_shots": 14,
+      "modelfile_sha256": "bfddb2f693f0c293d5f0d60bafb70225eeb4b48419ca0e8ca2b30e650050bf74",
+      "metrics": null,
+      "notes": "Modelo construido desde Modelfile."
+    }
+  ]
+}

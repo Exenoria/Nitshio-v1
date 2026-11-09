@@ -1,0 +1,26 @@
+# =============================================================================
+# Nitshio — entorno de fine-tuning (SOLO nube: Kaggle / Colab)
+# =============================================================================
+# No instalar en la T1200 de 4 GB. Este archivo se usa en el notebook
+# training/cloud/Nitshio_QLoRA.ipynb.
+#
+# En Kaggle/Colab, instala primero la versión de torch que corresponda a la
+# GPU del entorno y después este archivo. Unsloth recomienda su instalador
+# oficial para evitar conflictos de versiones.
+# =============================================================================
+
+torch>=2.4
+transformers>=4.46,<5
+datasets>=3.0,<5
+accelerate>=1.0,<2
+peft>=0.13,<1
+trl>=0.12,<1
+bitsandbytes>=0.44,<1
+sentencepiece>=0.2,<1
+protobuf>=5.0,<7
+safetensors>=0.4,<1
+huggingface_hub>=0.26,<2
+gguf>=0.10,<1
+scipy>=1.13,<2
+unsloth>=2025.1
+xformers
