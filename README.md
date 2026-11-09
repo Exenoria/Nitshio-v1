@@ -1,6 +1,7 @@
-# Nitshio
+# Nitshio-v1
 
-Waifu IA **100 % local** para Windows: personalidad tsundere en español
+LLM creado para ser una acompañante en mi escritorio. Nitshio es una waifu IA
+**100 % local** para Windows: personalidad tsundere en español
 mexicano, voz, memoria, herramientas, avatar VRM en VSeeFace y un pipeline de
 entrenamiento pensado para la nube.
 
