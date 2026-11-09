@@ -8,13 +8,14 @@ Cada entrada debe indicar fecha, qué cambió, por qué y archivos afectados.
 ### Corregido
 
 - Se generalizaron rutas locales, datos del equipo y nombres de archivos de
-  avatares en la documentación. **Por qué:** preparar una copia pública sin
-  publicar detalles identificables del entorno local.
+  avatares en la documentación y el notebook. **Por qué:** preparar una copia
+  pública sin publicar detalles identificables del entorno local.
 
 ### Archivos afectados
 
 `README.md`, `docs/PLAN.md`, `docs/VSEEFACE.md`, `docs/TROUBLESHOOTING.md`,
-`docs/DECISIONS.md`, `docs/TRAINING.md`, `docs/CHANGELOG.md`.
+`docs/DECISIONS.md`, `docs/TRAINING.md`, `docs/CHANGELOG.md`,
+`training/cloud/Nitshio_QLoRA.ipynb`.
 
 ## [0.2.1] — 2026-11-07
 
