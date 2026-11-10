@@ -109,7 +109,7 @@ def test_finetune_dry_run(tmp_path: Path, capsys) -> None:
     codigo = main(
         [
             "--dataset",
-            "training/datasets/seed.jsonl",
+            "training/datasets/train.jsonl",
             "--output-dir",
             str(tmp_path / "lora"),
             "--dry-run",
@@ -118,7 +118,9 @@ def test_finetune_dry_run(tmp_path: Path, capsys) -> None:
     assert codigo == 0
     salida = capsys.readouterr().out
     assert '"dry_run": true' in salida
-    assert '"dataset_examples": 48' in salida
+    assert '"dataset_examples": 348' in salida
+    assert '"train": 312' in salida
+    assert '"val": 36' in salida
 
 
 def test_export_dry_run(tmp_path: Path, capsys) -> None:

@@ -42,6 +42,16 @@ def test_mensajes_incluyen_sistema_y_usuario() -> None:
     assert roles.count("assistant") >= len(persona.few_shots)
 
 
+def test_mensajes_pueden_omitir_few_shots_si_se_configura() -> None:
+    from dataclasses import replace
+
+    config = cargar_config()
+    persona = replace(cargar_persona(config), include_few_shots_in_runtime=False)
+    mensajes = construir_mensajes(persona, "Hola")
+    roles = [m["role"] for m in mensajes]
+    assert roles.count("assistant") == 0
+
+
 def test_contexto_se_inyecta_y_recorta() -> None:
     config = cargar_config()
     persona = cargar_persona(config)

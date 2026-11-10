@@ -1,0 +1,46 @@
+{
+  "seed": 42,
+  "ratios": {
+    "train": 0.8,
+    "val": 0.1,
+    "test": 0.1
+  },
+  "counts": {
+    "train": 276,
+    "val": 36,
+    "test": 36,
+    "total": 348
+  },
+  "by_emotion": {
+    "train": {
+      "angry": 46,
+      "fun": 46,
+      "joy": 46,
+      "neutral": 46,
+      "sorrow": 46,
+      "surprised": 46
+    },
+    "val": {
+      "angry": 6,
+      "fun": 6,
+      "joy": 6,
+      "neutral": 6,
+      "sorrow": 6,
+      "surprised": 6
+    },
+    "test": {
+      "angry": 6,
+      "fun": 6,
+      "joy": 6,
+      "neutral": 6,
+      "sorrow": 6,
+      "surprised": 6
+    }
+  },
+  "source_hash": "8e96d86b1293b107a0f22b313596fa0813b92692537b51c92a5f1d4b005a8108",
+  "hashes": {
+    "train": "a38a0c3b35d12fa06da6f73c9034a144624ab23537049d5b2dd8c682539109fc",
+    "val": "fbcaa24afe10c10393bdf0e6c3ba8ee83028eeadd4b19474f95d6518638862fd",
+    "test": "f9e3668df17d26375176686eb38f2b5090df9c98fdf9edb90dffc4a69a6a164f"
+  }
+}

@@ -741,7 +741,7 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         type=Path,
         default=None,
-        help="Reporte .md o carpeta (default: training.eval_reports).",
+        help="Reporte .md o carpeta (default: training.reports_dir).",
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--no-judge", action="store_true")
@@ -783,9 +783,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     resultados: list[EvaluationResult] = []
+    cantidad_prompts = (
+        min(len(prompts), max(0, int(args.limit))) if args.limit else len(prompts)
+    )
     for modelo in modelos:
         if not args.quiet:
-            print(f"Evaluando {modelo} ({len(prompts)} prompts)...", file=sys.stderr)
+            print(
+                f"Evaluando {modelo} ({cantidad_prompts} prompts)...",
+                file=sys.stderr,
+            )
         try:
             resultado = evaluate_model(
                 config,

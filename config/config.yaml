@@ -50,8 +50,10 @@ persona:
   emotions_file: "config/emotions.yaml"
   history_turns: 12
   max_context_chars: 12000
-  # Los few-shot también están en el Modelfile (MESSAGE). Se incluyen en cada
-  # petición para garantizar el formato aunque el template de Ollama los omita.
+  # Los few-shot también están en el Modelfile (MESSAGE), pero se incluyen en
+  # runtime para garantizar el formato. Con num_ctx 2048 el prompt ronda los
+  # 2000 tokens; si la respuesta sale truncada, revisa este ajuste o usa una
+  # GPU con más VRAM para subir num_ctx.
   include_few_shots_in_runtime: true
 
 router:

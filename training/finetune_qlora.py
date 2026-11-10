@@ -14,6 +14,7 @@ Ejemplo:
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import sys
 from datetime import datetime, timezone
@@ -82,10 +83,18 @@ def _plan(config: dict[str, Any], dataset: Path, args: argparse.Namespace) -> di
 def _importar_entrenamiento() -> dict[str, Any]:
     """Importa el stack pesado solo cuando se va a entrenar de verdad."""
     try:
+        # Unsloth debe importarse antes que transformers/trl para que aplique
+        # sus parches y no avise de que el orden es incorrecto.
+        import unsloth  # noqa: F401
+        from unsloth import FastLanguageModel, is_bfloat16_supported
         from datasets import Dataset
         from transformers import AutoTokenizer, TrainingArguments
         from trl import SFTTrainer
-        from unsloth import FastLanguageModel, is_bfloat16_supported
+
+        try:
+            from trl import SFTConfig
+        except ImportError:  # TRL muy antiguo
+            SFTConfig = None
     except ImportError as exc:  # pragma: no cover - depende de la nube
         raise TrainingError(
             "Faltan dependencias de entrenamiento. En Kaggle/Colab instala "
@@ -97,9 +106,44 @@ def _importar_entrenamiento() -> dict[str, Any]:
         "AutoTokenizer": AutoTokenizer,
         "TrainingArguments": TrainingArguments,
         "SFTTrainer": SFTTrainer,
+        "SFTConfig": SFTConfig,
         "FastLanguageModel": FastLanguageModel,
         "is_bfloat16_supported": is_bfloat16_supported,
     }
+
+
+def _parametros(clase: Any) -> set[str]:
+    """Nombres aceptados por el constructor, sin fallar en wrappers raros."""
+    try:
+        return set(inspect.signature(clase).parameters)
+    except (TypeError, ValueError):
+        return set()
+
+
+def _crear_sft_config(
+    SFTConfig: Any,
+    comunes: dict[str, Any],
+    plan: dict[str, Any],
+) -> Any:
+    """Crea SFTConfig usando el nombre de longitud que acepte esta versión."""
+    parametros = _parametros(SFTConfig)
+    max_len = int(plan["max_seq_length"])
+    kwargs = dict(comunes)
+    if "dataset_text_field" in parametros or not parametros:
+        kwargs["dataset_text_field"] = "text"
+
+    if "max_length" in parametros or not parametros:
+        try:
+            return SFTConfig(max_length=max_len, **kwargs)
+        except TypeError:
+            # TRL 0.18/0.19 todavía aceptaba el nombre antiguo.
+            pass
+    if "max_seq_length" in parametros or not parametros:
+        return SFTConfig(max_seq_length=max_len, **kwargs)
+    raise TrainingError(
+        "SFTConfig no acepta max_length ni max_seq_length; revisa la versión "
+        "de TRL instalada."
+    )
 
 
 def _crear_trainer(
@@ -111,66 +155,98 @@ def _crear_trainer(
     val_dataset: Any,
     plan: dict[str, Any],
 ) -> Any:
-    """Crea SFTTrainer compatible con TRL antiguo y nuevo."""
+    """Crea SFTTrainer compatible con TRL antiguo y nuevo.
+
+    En TRL moderno la longitud y el campo de texto viven en ``SFTConfig`` y el
+    tokenizador se pasa como ``processing_class``. El shim de Unsloth ya no
+    traduce ``max_seq_length``/``dataset_text_field`` pasados directamente al
+    trainer, así que se construye la configuración correcta desde el principio.
+    """
     TrainingArguments = stack["TrainingArguments"]
     SFTTrainer = stack["SFTTrainer"]
+    SFTConfig = stack.get("SFTConfig")
     bf16 = bool(stack["is_bfloat16_supported"]())
-    argumentos = TrainingArguments(
-        output_dir=plan["output_dir"],
-        per_device_train_batch_size=int(plan["batch_size"]),
-        gradient_accumulation_steps=int(plan["grad_accum"]),
-        num_train_epochs=float(plan["epochs"]),
-        learning_rate=float(plan["learning_rate"]),
-        logging_steps=10,
-        save_strategy="epoch",
-        eval_strategy="epoch",
-        save_total_limit=2,
-        fp16=not bf16,
-        bf16=bf16,
-        report_to="none",
-        seed=int(plan["seed"]),
-        optim="adamw_8bit",
-    )
-    base = {
+    comunes = {
+        "output_dir": plan["output_dir"],
+        "per_device_train_batch_size": int(plan["batch_size"]),
+        "gradient_accumulation_steps": int(plan["grad_accum"]),
+        "num_train_epochs": float(plan["epochs"]),
+        "learning_rate": float(plan["learning_rate"]),
+        "logging_steps": 10,
+        "save_strategy": "epoch",
+        "eval_strategy": "epoch",
+        "save_total_limit": 2,
+        "fp16": not bf16,
+        "bf16": bf16,
+        "report_to": "none",
+        "seed": int(plan["seed"]),
+        "optim": "adamw_8bit",
+    }
+    trainer_params = _parametros(SFTTrainer)
+    usa_processing_class = "processing_class" in trainer_params or not trainer_params
+    trainer_kwargs: dict[str, Any] = {
         "model": model,
-        "tokenizer": tokenizer,
         "train_dataset": train_dataset,
         "eval_dataset": val_dataset,
-        "dataset_text_field": "text",
-        "args": argumentos,
     }
-    try:
-        return SFTTrainer(max_seq_length=int(plan["max_seq_length"]), **base)
-    except TypeError:
-        # TRL reciente movió max_seq_length a SFTConfig. Se intenta con
-        # SFTConfig antes de rendirse.
-        try:
-            from trl import SFTConfig
+    if usa_processing_class:
+        trainer_kwargs["processing_class"] = tokenizer
+    else:
+        trainer_kwargs["tokenizer"] = tokenizer
 
-            sft_args = SFTConfig(
-                output_dir=plan["output_dir"],
-                per_device_train_batch_size=int(plan["batch_size"]),
-                gradient_accumulation_steps=int(plan["grad_accum"]),
-                num_train_epochs=float(plan["epochs"]),
-                learning_rate=float(plan["learning_rate"]),
-                logging_steps=10,
-                save_strategy="epoch",
-                eval_strategy="epoch",
-                save_total_limit=2,
-                fp16=not bf16,
-                bf16=bf16,
-                report_to="none",
-                seed=int(plan["seed"]),
-                optim="adamw_8bit",
-                max_length=int(plan["max_seq_length"]),
-            )
-            base["args"] = sft_args
-            return SFTTrainer(**base)
-        except (ImportError, TypeError) as exc:
+    if SFTConfig is not None:
+        try:
+            trainer_kwargs["args"] = _crear_sft_config(SFTConfig, comunes, plan)
+            return SFTTrainer(**trainer_kwargs)
+        except TypeError as exc:
+            if usa_processing_class:
+                # Algunos wrappers no exponen processing_class en la firma.
+                trainer_kwargs.pop("processing_class", None)
+                trainer_kwargs["tokenizer"] = tokenizer
+                try:
+                    return SFTTrainer(**trainer_kwargs)
+                except TypeError as exc2:
+                    raise TrainingError(
+                        "No se pudo construir SFTTrainer con esta versión de "
+                        f"TRL. Detalle: {exc2!r}. Revisa requirements-train.txt."
+                    ) from exc2
             raise TrainingError(
                 "No se pudo construir SFTTrainer con esta versión de TRL. "
-                "Revisa requirements-train.txt."
+                f"Detalle: {exc!r}. Revisa requirements-train.txt."
             ) from exc
+
+    # TRL sin SFTConfig: API antigua, con los argumentos directamente en el
+    # trainer.
+    argumentos = TrainingArguments(**comunes)
+    legacy_kwargs: dict[str, Any] = {
+        "model": model,
+        "train_dataset": train_dataset,
+        "eval_dataset": val_dataset,
+        "args": argumentos,
+        "dataset_text_field": "text",
+        "max_seq_length": int(plan["max_seq_length"]),
+    }
+    if usa_processing_class:
+        legacy_kwargs["processing_class"] = tokenizer
+    else:
+        legacy_kwargs["tokenizer"] = tokenizer
+    try:
+        return SFTTrainer(**legacy_kwargs)
+    except TypeError as exc:
+        if "processing_class" in legacy_kwargs:
+            legacy_kwargs.pop("processing_class")
+            legacy_kwargs["tokenizer"] = tokenizer
+            try:
+                return SFTTrainer(**legacy_kwargs)
+            except TypeError as exc2:
+                raise TrainingError(
+                    "No se pudo construir SFTTrainer con esta versión de TRL. "
+                    f"Detalle: {exc2!r}. Revisa requirements-train.txt."
+                ) from exc2
+        raise TrainingError(
+            "No se pudo construir SFTTrainer con esta versión de TRL. "
+            f"Detalle: {exc!r}. Revisa requirements-train.txt."
+        ) from exc
 
 
 def entrenar(args: argparse.Namespace) -> dict[str, Any]:

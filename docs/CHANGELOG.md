@@ -3,6 +3,97 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Cada entrada debe indicar fecha, qué cambió, por qué y archivos afectados.
 
+## [0.3.0] — 2026-11-08
+
+### Añadido
+
+- **Pipeline de entrenamiento del Paso 3 (núcleo local):** esquema JSONL
+  estricto, validación, deduplicación, hashes, split estratificado, generador
+  sintético, evaluador, registro de versiones, construcción de Modelfile, UI
+  Gradio y scripts cloud. **Por qué:** preparar el fine-tune en Kaggle/Colab,
+  evaluar antes/después y activar o revertir versiones sin editar el YAML a
+  mano.
+- **Dataset semilla** `training/datasets/seed.jsonl`: 48 ejemplos, 8 por
+  emoción, sin errores ni duplicados.
+- **Set de evaluación** `training/eval/prompts.yaml`: 18 prompts fijos con
+  emoción esperada y respuesta de referencia.
+- **Generador sintético** `training/generate_synthetic.py`: lotes por emoción,
+  filtrado, deduplicación y manifiesto reproducible.
+- **QLoRA y exportación GGUF** `training/finetune_qlora.py` y
+  `training/export_gguf.py`, con `--dry-run` local y manifiestos de
+  entrenamiento/exportación.
+- **Notebook cloud** `training/cloud/Nitshio_QLoRA.ipynb` para Kaggle/Colab:
+  validación, QLoRA, `llama.cpp`, GGUF y empaquetado.
+- **Versionado y rollback** `training/versions.py`: registro canónico,
+  activación segura de `config.yaml`, rollback y métricas por versión.
+- **UI Gradio** `training/ui.py` con chat, 👍/👎, correcciones, editor de
+  dataset, versiones, reconstrucción del Modelfile y plan cloud.
+- **Configuración** `training.hf_model` y `training.synthetic` en
+  `config/config.yaml`.
+- **Tests de training:** 56 tests nuevos más cobertura de persona para el
+  comportamiento de few-shots.
+
+### Corregido
+
+- El split ahora usa el método del mayor resto y garantiza al menos un ejemplo
+  en cada partición activa cuando la emoción tiene 3 o más ejemplos. **Por
+  qué:** validación y prueba quedaban desproporcionadas con el dataset pequeño.
+- `training/ui.py` detecta Gradio 5 y 6 (`Chatbot.type` ya no existe en 6).
+  **Por qué:** la UI debía arrancar con la versión instalada.
+- `training/generate_synthetic.py` acepta listas JSON directas además del
+  objeto `{"examples": [...]}`. **Por qué:** el modelo no siempre respeta el
+  envoltorio.
+- `training/service.py` crea el directorio de correcciones antes de escribir.
+  **Por qué:** el primer feedback podía fallar si `training/datasets` no
+  existía.
+- `scripts/check_docs.py` incluye la carpeta `training/` en la comprobación.
+  **Por qué:** el código nuevo debía quedar cubierto por la regla de
+  documentación.
+- `scripts/build_model.py` pasa a ser un wrapper compatible de
+  `training/build_model.py`, que es la implementación canónica. **Por qué:**
+  evitar dos renderizadores del Modelfile que se desincronicen.
+
+### Verificado
+
+- `pytest -q`: **249 tests en verde**.
+- Dataset semilla: 48 ejemplos, 0 errores, 0 duplicados, hash
+  `ef7320f770caa821a49000c64663dd8fae5e33dfcce0113a64975a1c279ca26d`.
+- Split real con ratios 0.8/0.1/0.1 y `seed=42`: **36 train / 6 val / 6 test**.
+- Dry-run real de QLoRA: 48 ejemplos → **42 train / 6 val**, base
+  `microsoft/Phi-3.5-mini-instruct`.
+- Dry-run real de exportación GGUF: cuantización **q4_K_M**.
+- UI Gradio construida y arrancada en `http://127.0.0.1:7861/` con Gradio
+  6.31.0.
+- Evaluación real de `nitshio-v1` contra el modelo base con
+  `training/evaluate.py --compare-base --no-judge` (18 prompts, embeddings de
+  Ollama, sin juez): `nitshio-v1` score **0.5452** (JSON 100%, emoción 33.3%,
+  similitud 0.477, 78.5 s/prompt) frente al base **0.4289** (JSON 94.4%,
+  emoción 5.6%, similitud 0.451, 91.7 s/prompt). Reporte:
+  `training/eval/reports/eval_20261109_051355.md`.
+- Métricas de `nitshio-v1` adjuntadas a `models/versions.json` mediante
+  `training/versions.py metrics`.
+
+### Documentación
+
+- `docs/TRAINING.md` reescrito con el flujo real, comandos, estado y
+  pendientes.
+- `docs/PLAN.md`: Paso 3 en curso con evidencias locales y aceptación cloud
+  pendiente.
+- `docs/ARCHITECTURE.md`: módulo `training/`, flujo de entrenamiento y estado
+  de pruebas.
+- `docs/DECISIONS.md`: D-017 (split con cobertura mínima) y D-018 (la UI no
+  entrena en local).
+- `docs/TROUBLESHOOTING.md`: sección de entrenamiento, Gradio, dataset, GGUF,
+  evaluación y contexto.
+- `README.md`: estado del Paso 3, comandos de entrenamiento y 249 tests.
+
+### Archivos afectados
+
+`training/`, `tests/`, `scripts/check_docs.py`, `scripts/build_model.py`,
+`config/config.yaml`, `models/versions.json`, `README.md`, `docs/PLAN.md`,
+`docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/TRAINING.md`,
+`docs/TROUBLESHOOTING.md`, `docs/CHANGELOG.md`.
+
 ## [0.2.2] — 2026-11-08
 
 ### Corregido

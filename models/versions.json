@@ -1,5 +1,6 @@
 {
   "active": "nitshio-v1",
+  "previous_active": null,
   "versions": [
     {
       "name": "nitshio-v1",
@@ -9,8 +10,22 @@
       "persona_sha256": "d8197736624dfa24d2e6c97043aa73212560fdcfd5d108102d5f6b9b3e488406",
       "few_shots": 14,
       "modelfile_sha256": "bfddb2f693f0c293d5f0d60bafb70225eeb4b48419ca0e8ca2b30e650050bf74",
-      "metrics": null,
-      "notes": "Modelo construido desde Modelfile."
+      "metrics": {
+        "evaluation": {
+          "count": 18,
+          "json_valid_rate": 1.0,
+          "emotion_accuracy": 0.3333,
+          "similarity_mean": 0.4766,
+          "length_mean": 222.8,
+          "latency_mean_seconds": 78.498,
+          "tokens_per_second_mean": 5.83,
+          "personality_mean": null,
+          "composite_score": 0.5452,
+          "similarity_backend": "embeddings"
+        }
+      },
+      "notes": "Modelo construido desde Modelfile.",
+      "metrics_updated_at": "2026-11-09T05:14:30.639597+00:00"
     }
   ]
 }

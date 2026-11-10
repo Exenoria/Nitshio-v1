@@ -4,10 +4,12 @@
 Ejemplos:
     python training/build_model.py --version nitshio-v1 --create --activate
     python training/build_model.py --version nitshio-v2 --print
+    python training/build_model.py --version nitshio-v2 --gguf models/nitshio-v2.gguf --create
     python training/build_model.py --version nitshio-v3 --create
 
 El script valida los few-shots antes de compilar y no hardcodea modelos: el
-modelo base y los parámetros se leen de ``config/config.yaml``.
+modelo base y los parámetros se leen de ``config/config.yaml``. Con ``--gguf``
+el ``FROM`` apunta a un GGUF local y la versión se registra con ``type=gguf``.
 """
 
 from __future__ import annotations
@@ -43,19 +45,42 @@ def _quoted(texto: str) -> str:
     return json.dumps(texto, ensure_ascii=False)
 
 
+def _from_value(valor: str) -> str:
+    """Normaliza el valor de ``FROM`` para un tag o un GGUF local.
+
+    Los tags se dejan intactos. Las rutas ``.gguf`` se resuelven a absolutas y
+    se escriben con barras normales. Si la ruta contiene espacios se
+    entrecomilla, que es lo que acepta el parser de Modelfile de Ollama.
+    """
+    path = Path(valor).expanduser()
+    if path.suffix.lower() != ".gguf":
+        return valor
+    ruta = path.resolve().as_posix()
+    if any(caracter.isspace() for caracter in ruta):
+        return f'"{ruta}"'
+    return ruta
+
+
 def render_modelfile(
     config: dict[str, Any],
     persona: Any,
     template_path: Path | None = None,
+    *,
+    base_override: str | None = None,
 ) -> str:
-    """Renderiza el Modelfile completo a partir de config y persona."""
+    """Renderiza el Modelfile completo a partir de config y persona.
+
+    ``base_override`` permite sustituir el tag base por la ruta de un GGUF
+    local sin tocar el resto del template (SYSTEM, TEMPLATE Phi-3.5,
+    parámetros y MESSAGE).
+    """
     ruta_template = Path(template_path) if template_path else DEFAULT_TEMPLATE
     if not ruta_template.exists():
         raise FileNotFoundError(f"No existe el template: {ruta_template}")
     template = ruta_template.read_text(encoding="utf-8")
 
     modelos = config["ollama"]["models"]
-    base = str(modelos["base"])
+    base = _from_value(base_override) if base_override else str(modelos["base"])
     system = persona.system_prompt
     if '"""' in system:
         raise ValueError(
@@ -96,16 +121,29 @@ def registrar_version(
     dataset_path: Path | str | None = None,
     notes: str = "",
     versions_file: Path | str = VERSIONS_FILE,
+    version_type: str = "modelfile",
+    gguf_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Registra la versión en ``models/versions.json``."""
+    """Registra la versión en ``models/versions.json``.
+
+    ``version_type`` es ``"modelfile"`` para un modelo construido desde un tag
+    de Ollama o ``"gguf"`` para uno construido desde un GGUF local.
+    """
+    if not notes:
+        notes = (
+            "Modelo GGUF local."
+            if version_type == "gguf"
+            else "Modelo construido desde Modelfile."
+        )
     return register_version(
         version,
         base,
-        type="modelfile",
+        type=version_type,
         persona=persona,
         modelfile=modelfile,
         dataset_path=dataset_path,
-        notes=notes or "Modelo construido desde Modelfile.",
+        gguf_path=str(gguf_path) if gguf_path else None,
+        notes=notes,
         activate=activate,
         registry_path=versions_file,
     )
@@ -168,6 +206,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Dataset usado; se guarda su hash en versions.json.",
     )
     parser.add_argument(
+        "--gguf",
+        type=Path,
+        default=None,
+        help=(
+            "GGUF local: usa FROM <ruta> con el TEMPLATE de Phi-3.5 y "
+            "registra la versión con type=gguf."
+        ),
+    )
+    parser.add_argument(
         "--notes",
         default="",
         help="Nota libre para el registro de versión.",
@@ -188,8 +235,24 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {problema}", file=sys.stderr)
         return 1
 
+    gguf_path: Path | None = None
+    version_type = "modelfile"
+    base_override: str | None = None
+    if args.gguf:
+        gguf_path = args.gguf.expanduser().resolve()
+        if not gguf_path.is_file():
+            print(f"ERROR: no existe el GGUF: {gguf_path}", file=sys.stderr)
+            return 1
+        if gguf_path.suffix.lower() != ".gguf":
+            print(f"ERROR: el archivo no es .gguf: {gguf_path}", file=sys.stderr)
+            return 1
+        version_type = "gguf"
+        base_override = str(gguf_path)
+
     try:
-        modelfile = render_modelfile(config, persona)
+        modelfile = render_modelfile(
+            config, persona, base_override=base_override
+        )
     except (OSError, ValueError) as exc:
         print(f"ERROR al renderizar: {exc}", file=sys.stderr)
         return 1
@@ -210,6 +273,8 @@ def main(argv: list[str] | None = None) -> int:
             activate=False,
             dataset_path=args.dataset,
             notes=args.notes,
+            version_type=version_type,
+            gguf_path=gguf_path,
         )
     except (OSError, VersionError) as exc:
         print(f"ERROR al registrar la versión: {exc}", file=sys.stderr)

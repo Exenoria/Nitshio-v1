@@ -1,7 +1,7 @@
 # Plan de construcción — Nitshio
 
 > Documento vivo. Se actualiza al cerrar cada fase.
-> Última actualización: 2026-11-08
+> Última actualización: 2026-11-09
 
 ## 1. Resumen
 
@@ -207,7 +207,7 @@ No se avanza si la fase anterior falla.
 | A — Paso 0: Ollama/hardware | ✅ Completada | `check_models.py` verde; 20.9 tok/s principal, 92.1 tok/s router, 0.12 s embeddings; JSON válido en ambos |
 | B — Paso 1: cerebro | ✅ Completada | 40 tests; `nitshio-v1` con JSON válido y personalidad; `check_models.py` AJUSTADO (15.6 tok/s) |
 | C — Paso 2: pipeline | ✅ Completada | 192 tests; prueba integral de voz Piper→Moonshine→Ollama→TTS→CABLE Output (RMS 0.0685); lip-sync visual confirmado; seis emociones VMC; router real |
-| D — Paso 3: entrenamiento | ⏳ Pendiente | — |
+| D — Paso 3: entrenamiento | 🔄 En curso (local completo; aceptación pendiente de nube) | 255 tests; datasets 300/348 y split 276/36/36; dry-run QLoRA 312/36; `--gguf` y notebook Colab listos; UI Gradio arrancada; evaluación real v1 0.5452 vs base 0.4289 |
 | E — Paso 4: extensibilidad | ⏳ Pendiente | — |
 | F — Paso 5: documentación | ⏳ Pendiente | — |
 | G — Paso 6: emociones | ⏳ Pendiente | — |
@@ -316,6 +316,57 @@ Confirmación humana opcional (no bloquea la fase):
 - **Aceptación:** crear `nitshio-v2`, comparar contra `v1`, ver mejora o diferencia
   medible, activar y volver atrás.
 
+#### Estado real del Paso 3 (2026-11-09)
+
+Implementado y probado en local:
+
+- [x] Esquema estricto JSONL (`user`, `response`, `emotion`), validación,
+      deduplicación exacta/casi duplicada y hashes reproducibles.
+- [x] Dataset importado `training/datasets/nitshio_dataset_300.jsonl`: 300
+      ejemplos, 50 por emoción, 0 errores y 0 duplicados.
+- [x] Dataset combinado `training/datasets/train.jsonl`: 348 ejemplos únicos
+      (seed + 300, 300 duplicados descartados), 58 por emoción.
+- [x] Split determinista y estratificado del combinado: 276 train / 36 val /
+      36 test con ratios 0.8/0.1/0.1 y `seed=42`.
+- [x] Generador sintético por emoción con lotes, filtrado, deduplicación y
+      manifiesto (`training/generate_synthetic.py`).
+- [x] Evaluador con 18 prompts fijos, métricas de JSON, emoción, similitud,
+      longitud, latencia, tokens/s, juez opcional y reporte Markdown + JSON
+      (`training/evaluate.py`).
+- [x] Análisis de latencia: 78.5 s de pared y 5.83 tok/s bajo contexto lleno,
+      frente a 17.5 tok/s de `check_models.py` con prompt más corto.
+- [x] Registro de versiones, activación y rollback sin perder comentarios del
+      YAML (`training/versions.py`).
+- [x] Construcción de Modelfile y `ollama create` (`training/build_model.py`;
+      `scripts/build_model.py` queda como wrapper compatible).
+- [x] Carga de un GGUF local con `--gguf`: `FROM` absoluto, `TEMPLATE` de
+      Phi-3.5 y registro `type=gguf` + `gguf_path`.
+- [x] Fine-tune QLoRA con Unsloth/TRL y manifiesto (`training/finetune_qlora.py`).
+- [x] Fusión LoRA, conversión GGUF y cuantización q4_K_M
+      (`training/export_gguf.py`).
+- [x] Notebook Colab con rutas `/content`, descompresión del zip y dataset
+      combinado (`training/cloud/Nitshio_QLoRA.ipynb`).
+- [x] UI Gradio con chat, 👍/👎, correcciones, editor de dataset, versiones,
+      reconstrucción del Modelfile y plan cloud (`training/ui.py`).
+- [x] Correcciones guardadas en `training/datasets/corrections.jsonl` y en
+      ChromaDB.
+- [x] 62 tests de training (6 nuevos de GGUF); suite completa de 255 tests en
+      verde.
+- [x] Dry-run real de QLoRA: 348 ejemplos → 312 train / 36 val.
+- [x] Dry-run real de exportación GGUF: cuantización `q4_K_M`.
+- [x] UI construida y arrancada en `http://127.0.0.1:7861/` con Gradio 6.31.0.
+- [x] Evaluación real de `nitshio-v1` contra el base (18 prompts, embeddings,
+      sin juez): score **0.5452** vs **0.4289**; métricas adjuntadas a
+      `models/versions.json`.
+
+Pendiente para cerrar la aceptación:
+
+- [ ] Ejecutar el notebook en Kaggle/Colab y descargar `nitshio-v2.gguf`.
+- [ ] Crear `nitshio-v2` en Ollama local.
+- [ ] Comparar `v2` contra `v1` y el base con el evaluador real.
+- [ ] Activar `nitshio-v2` y probar rollback con el GGUF real.
+- [ ] Definir el umbral de mejora aceptable.
+
 ### Fase E — Paso 4: extensibilidad
 
 - Interfaces abstractas para LLM, STT, TTS, memoria y avatar.
@@ -388,9 +439,12 @@ Confirmación humana opcional (no bloquea la fase):
 - [x] Herramientas con plugins y borrado seguro.
 - [x] TTS por chunks, salida a VB-Cable, Fish opcional.
 - [x] VSeeFace recibe emociones y lip-sync.
-- [ ] Fine-tune QLoRA + GGUF + Ollama, versionado y rollback.
-- [ ] Evaluación antes/después con reporte.
-- [ ] UI Gradio de entrenamiento y correcciones.
+- [ ] Fine-tune QLoRA + GGUF + Ollama, versionado y rollback. El pipeline
+      local está implementado; falta ejecutar el entrenamiento en la nube y
+      cargar `nitshio-v2`.
+- [ ] Evaluación antes/después con reporte. El evaluador está implementado y
+      se ejecutó contra `nitshio-v1` y el base; falta comparar contra `v2`.
+- [x] UI Gradio de entrenamiento y correcciones.
 - [x] Documentación completa, changelog obligatorio y `check_docs.py`.
 - [ ] Autoconciencia de ruta/código con `MANIFEST.json` y `read_own_code`.
       `read_own_code` ya existe; falta el manifiesto y la indexación completa.
@@ -398,8 +452,9 @@ Confirmación humana opcional (no bloquea la fase):
 
 ## 9. Orden de trabajo inmediato
 
-1. Paso 2 cerrado. Iniciar el Paso 3: dataset JSONL, generador sintético,
-   fine-tune QLoRA en Kaggle/Colab, exportación GGUF, evaluación y versionado.
-2. Mantener `pytest -q` + `check_docs.py` como gate de cada subfase.
-3. La confirmación humana de `run.py --mode voice` queda como prueba opcional
+1. Paso 3: núcleo local completo y probado. Falta la aceptación real en la nube
+   (QLoRA → GGUF → `nitshio-v2` → comparación → activar/rollback).
+2. No iniciar el Paso 4 hasta que el usuario confirme el cierre del Paso 3.
+3. Mantener `pytest -q` + `check_docs.py` como gate de cada subfase.
+4. La confirmación humana de `run.py --mode voice` queda como prueba opcional
    cuando el usuario quiera hablar por el micrófono.

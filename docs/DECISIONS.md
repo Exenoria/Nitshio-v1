@@ -227,3 +227,57 @@ audio tampoco reaccionó al audio de `CABLE Output`; el proveedor viejo sí.
 ajuste debe hacerse en la UI de VSeeFace y persiste en `settings.ini`. Si una
 versión futura de VSeeFace arregla el proveedor nuevo, se puede volver a
 `OldLipSyncProvider=0` sin tocar el código de Nitshio.
+
+---
+
+## D-017 — Split estratificado con cobertura mínima
+
+**Contexto:** el dataset semilla es pequeño (48 ejemplos, 8 por emoción). Un
+reparto proporcional puro podía dejar validación o prueba con muy pocos
+ejemplos, o vacías en grupos aún menores.
+
+**Decisión:** `training/schema.py` reparte con el método del mayor resto y, si
+una emoción tiene 3 o más ejemplos, garantiza al menos uno en cada partición
+activa (train/val/test). El orden es determinista por `seed`.
+
+**Consecuencias:** con ratios 0.8/0.1/0.1 y `seed=42`, el split del dataset
+semilla de 48 ejemplos era 36/6/6; con el combinado actual de 348 ejemplos es
+**276/36/36**. El conjunto de validación sigue siendo pequeño pero
+representativo; al crecer el dataset, el reparto se acerca a los ratios
+configurados.
+
+---
+
+## D-019 — GGUF local con `FROM` absoluto y notebook de Colab reproducible
+
+**Contexto:** el QLoRA se ejecuta en Colab y el GGUF resultante debe cargarse en
+Ollama local sin editar el Modelfile a mano. El notebook debe funcionar sobre
+`/content` y admitir que el proyecto llegue como zip.
+
+**Decisión:** `training/build_model.py --gguf` escribe el `FROM` con la ruta
+absoluta del GGUF en formato POSIX (barras normales; entrecomillada si contiene
+espacios), conserva el `TEMPLATE` de Phi-3.5 y registra la versión con
+`type=gguf` y `gguf_path`. El notebook usa `NITSHIO_WORKDIR=/content`,
+`NITSHIO_DIR=/content/Nitshio`, descomprime `*.zip` y construye `train.jsonl`
+combinando `seed + nitshio_dataset_300` con deduplicación.
+
+**Consecuencias:** el mismo GGUF se crea y activa con un solo comando, y el
+notebook es portable entre Colab y Kaggle cambiando `NITSHIO_WORKDIR`. El
+combinado queda en 348 ejemplos porque la semilla ya contiene los 300
+importados; el split real es 276/36/36.
+
+---
+
+## D-018 — La UI nunca entrena en local
+
+**Contexto:** la T1200 de 4 GB no puede ejecutar QLoRA de un modelo 3B y el
+entrenamiento local bloquearía la máquina durante horas.
+
+**Decisión:** `training/ui.py` solo prepara datos, prueba el modelo activo,
+guarda correcciones, reconstruye el Modelfile y activa/revierte versiones. Para
+entrenar muestra el comando y abre el notebook de Kaggle/Colab; no lanza
+`finetune_qlora.py` ni `export_gguf.py` desde la interfaz local.
+
+**Consecuencias:** la UI es segura y rápida en la máquina local. El coste real
+de entrenamiento queda en la nube y el GGUF se integra después con
+`ollama create`.

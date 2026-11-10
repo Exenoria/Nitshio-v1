@@ -153,7 +153,12 @@ def build_ui(service: TrainingService | None = None) -> Any:
         )
         ultimo = gr.State(None)
         with gr.Tab("Chat"):
-            chatbot = gr.Chatbot(type="messages", height=420)
+            # Gradio 6 usa mensajes por defecto y ya no acepta ``type``;
+            # Gradio 5 necesita el argumento explícito.
+            try:
+                chatbot = gr.Chatbot(type="messages", height=420)
+            except TypeError:
+                chatbot = gr.Chatbot(height=420)
             with gr.Row():
                 mensaje = gr.Textbox(
                     label="Mensaje",

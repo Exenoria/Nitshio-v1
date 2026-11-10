@@ -9,10 +9,11 @@ El cerebro, el STT, el TTS local, la memoria y el avatar funcionan sin internet.
 Solo necesitan red la búsqueda web, la reproducción de YouTube y el proveedor
 opcional Fish Audio.
 
-> **Estado actual:** Paso 2 (pipeline completo) **cerrado**. La cadena
-> STT → Ollama → TTS → avatar está validada con Moonshine, Piper, VB-Cable y
-> VSeeFace reales, incluido el lip-sync por audio. El fine-tune (Paso 3)
-> todavía no está implementado.
+> **Estado actual:** Paso 2 (pipeline completo) **cerrado**. Paso 3
+> (entrenamiento) **implementado en local**: dataset combinado de 348 ejemplos,
+> generador sintético, evaluador, versionado, UI Gradio, notebook de Colab y
+> carga de GGUF con `--gguf` están probados. Falta la aceptación real en Colab
+> para producir `nitshio-v2` y compararlo contra `nitshio-v1`.
 
 ## Requisitos
 
@@ -156,6 +157,40 @@ Habilitadas por defecto en `config/config.yaml`:
   `logs/deletions.jsonl`.
 - Se limitan tamaño de lectura y escritura.
 
+## Entrenamiento
+
+El fine-tune se ejecuta **solo en Kaggle/Colab**; la T1200 de 4 GB no entrena.
+Localmente se preparan datos, se evalúa y se carga el GGUF resultante.
+
+```powershell
+# Validar el dataset importado y el combinado
+.\.venv\Scripts\python.exe training\validate_dataset.py training\datasets\nitshio_dataset_300.jsonl --strict --json
+.\.venv\Scripts\python.exe training\validate_dataset.py training\datasets\train.jsonl --strict --json
+
+# Generar datos sintéticos (requiere Ollama)
+.\.venv\Scripts\python.exe training\generate_synthetic.py --append --json
+
+# Abrir la UI de entrenamiento y correcciones
+.\.venv\Scripts\python.exe training\ui.py
+
+# Comparar el modelo activo contra el base
+.\.venv\Scripts\python.exe training\evaluate.py --compare-base --no-judge
+
+# Crear y activar una versión desde un GGUF local
+.\.venv\Scripts\python.exe training\build_model.py --version nitshio-v2 `
+  --gguf C:\ruta\nitshio-v2.gguf --create --activate
+```
+
+El notebook `training/cloud/Nitshio_QLoRA.ipynb` está preparado para Colab:
+descomprime el proyecto en `/content`, combina `seed.jsonl` con
+`nitshio_dataset_300.jsonl`, entrena con QLoRA y exporta el GGUF cuantizado.
+En local, `training/build_model.py --gguf` lo registra con `type=gguf` y lo
+activa. La primera comparación real (18 prompts, sin juez) dio score **0.5452**
+a `nitshio-v1` frente a **0.4289** del modelo base; el reporte está en
+`training/eval/reports/`. La calidad del texto todavía es baja y el fine-tune
+cloud sigue pendiente. El flujo completo, los comandos y el estado de
+aceptación están en [TRAINING.md](docs/TRAINING.md).
+
 ## Tests
 
 ```powershell
@@ -165,7 +200,7 @@ Habilitadas por defecto en `config/config.yaml`:
 
 La suite cubre configuración, parser, persona, cliente Ollama, router, memoria,
 herramientas, seguridad de archivos, VAD, STT/TTS, avatar, orquestador, pipeline
-de voz, micrófono y el propio `check_docs.py` (**192 tests**).
+de voz, micrófono, training y el propio `check_docs.py` (**255 tests**).
 
 ## Documentación
 
@@ -191,5 +226,8 @@ de voz, micrófono y el propio `check_docs.py` (**192 tests**).
 - El lip-sync de VSeeFace requiere el **proveedor viejo** (“Usar el modelo viejo
   para lip sync”). Con el nuevo, el audio llega pero la boca no se mueve. Ver
   [VSeeFace](docs/VSEEFACE.md).
-- El fine-tune solo se ejecutará en Kaggle/Colab; la T1200 no entrena.
+- El fine-tune solo se ejecuta en Kaggle/Colab; la T1200 no entrena. El
+  pipeline local y los dry-runs están listos, pero `nitshio-v2` todavía no se
+  generó.
+- La UI Gradio requiere instalar `requirements.txt` (incluye `gradio>=5,<7`).
 - Discord está previsto como adaptador opcional y aún no está conectado.

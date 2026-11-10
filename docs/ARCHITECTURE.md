@@ -1,7 +1,7 @@
 # Arquitectura — Nitshio
 
 > Documento vivo. Describe los módulos implementados y cómo se conectan.
-> Última actualización: 2026-11-07 (Paso 2).
+> Última actualización: 2026-11-09 (Paso 3, GGUF y Colab).
 
 ## 1. Principios
 
@@ -187,6 +187,55 @@ Mensajes VMC:
 | `text.py` | Bucle de chat, comandos `/salir`, `/limpiar`, `/herramientas`, `/memoria`, `/emocion`. |
 | `voice.py` | `VoicePipeline`, `MicrophoneListener` y `CallMode` con barge-in. |
 
+### `training/`
+
+| Archivo | Responsabilidad |
+|---|---|
+| `schema.py` | Esquema Pydantic estricto, validación, deduplicación, hashes y split estratificado. |
+| `validate_dataset.py` | CLI de validación, conteos, duplicados y partición train/val/test. |
+| `generate_synthetic.py` | Generación de lotes por emoción con Ollama, filtrado, deduplicación y manifiesto. |
+| `formatting.py` | Conversión de ejemplos a mensajes y texto de entrenamiento. |
+| `finetune_qlora.py` | QLoRA con Unsloth/TRL en la nube; `--dry-run` funciona en local. |
+| `export_gguf.py` | Fusión de adaptadores LoRA, conversión GGUF y cuantización. |
+| `evaluate.py` | Métricas de JSON, emoción, similitud, latencia, juez opcional y reportes. |
+| `versions.py` | Registro canónico, activación, rollback y métricas por versión. |
+| `build_model.py` | Render del Modelfile (tag o `--gguf` local) y `ollama create`. |
+| `service.py` | Lógica de la UI: chat, feedback, correcciones, dataset y versiones. |
+| `ui.py` | Interfaz Gradio con pestañas Chat, Dataset, Versiones y Nube. |
+| `datasets/seed.jsonl` | 348 ejemplos semilla (48 originales + 300 importados), 58 por emoción. |
+| `datasets/nitshio_dataset_300.jsonl` | 300 ejemplos importados, 50 por emoción. |
+| `datasets/train.jsonl` | Combinado deduplicado de 348 ejemplos; entrada del fine-tune. |
+| `eval/prompts.yaml` | 18 prompts fijos con emoción esperada y referencia. |
+| `cloud/Nitshio_QLoRA.ipynb` | Notebook de Colab: `/content`, unzip, dataset combinado y GGUF. |
+
+**Flujo de entrenamiento:**
+
+```text
+seed + nitshio_dataset_300 + synthetic/corrections JSONL
+   │
+   ▼
+schema + validate_dataset ──► deduplicación + train.jsonl + split estratificado
+   │
+   ▼
+generate_synthetic (opcional) ──► más ejemplos + manifiesto
+   │
+   ▼
+finetune_qlora (Colab) ──► adaptadores LoRA
+   │
+   ▼
+export_gguf ──► GGUF f16 ──► q4_K_M
+   │
+   ▼
+build_model --gguf ──► FROM local + TEMPLATE Phi-3.5 + type=gguf
+   │
+   ▼
+ollama create nitshio-vN ──► evaluate.py ──► versions.py (activar/rollback)
+```
+
+La UI nunca lanza QLoRA en la T1200: muestra el comando y el notebook. Las
+correcciones se guardan en JSONL y en ChromaDB para que el cambio sea inmediato
+sin reentrenar.
+
 ### `scripts/`
 
 | Script | Función |
@@ -233,7 +282,7 @@ Mensajes VMC:
 ## 7. Estado de pruebas
 
 - Suite unitaria con dobles para audio, VMC, Ollama, Chroma y navegador:
-  **192 tests en verde**.
+  **255 tests en verde** (192 del núcleo + 62 de training + 1 de persona).
 - Round-trip real Piper → Moonshine validado en este equipo.
 - Pipeline real de texto con Ollama validado (JSON válido y memoria activa).
 - Micrófono real `USB MIC PRO` abre y captura.
@@ -245,3 +294,16 @@ Mensajes VMC:
 - Prueba integral de voz (`scripts/test_voice_roundtrip.py`): STT Moonshine,
   orquestador real, TTS por chunks y audio en `CABLE Output` (RMS 0.068506,
   pico 0.283783).
+- Datasets validados: 300 importados y 348 combinados, 0 errores y 0 duplicados.
+- Split real del combinado con ratios 0.8/0.1/0.1: 276 train / 36 val / 36 test.
+- Dry-run real de QLoRA: 348 ejemplos → 312 train / 36 val.
+- Dry-run real de exportación GGUF: cuantización `q4_K_M`.
+- Carga de GGUF local con `--gguf` validada: `FROM` absoluto, `TEMPLATE` de
+  Phi-3.5 y registro `type=gguf`.
+- Notebook Colab validado como JSON con 10 celdas y rutas `/content`.
+- UI Gradio construida y arrancada en `http://127.0.0.1:7861/`.
+- Evaluación real de `nitshio-v1` contra el modelo base con
+  `--compare-base --no-judge` (18 prompts, embeddings, sin juez): score
+  **0.5452** vs **0.4289**; reporte en
+  `training/eval/reports/eval_20261109_051355.md` y métricas en
+  `models/versions.json`.
